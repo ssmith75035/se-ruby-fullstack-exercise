@@ -2,28 +2,34 @@ require 'sinatra'
 require 'httparty'
 require 'securerandom'
 require 'twilio-ruby'
+require 'optimizely'
 
 # STEP 1: Add the Optimizely Full Stack Ruby gem
-# STEP 2: Require the Optimizely gem 
+# STEP 2: Require the Optimizely gem
 # STEP 3: Include the twilio account SID, auth token and phone number below
 
 # => Log into Twilio and access the account SID, token, and number
-TWILIO_NUMBER = '+14157022765'
-TWILIO_ACCOUNT_SID = 'replace with twilio sid'
-TWILIO_AUTH_TOKEN = 'replace with auth token'
+TWILIO_NUMBER = ''
+TWILIO_ACCOUNT_SID = ''
+TWILIO_AUTH_TOKEN = ''
 
 # Optimizely Setup
 
 # Step 4: Replace this url with your own Optimizely Project
 
-DATAFILE_URL = 'https://cdn.optimizely.com/public/8785893177/s/10677861955_10677861955.json'
+DATAFILE_URL = 'https://cdn.optimizely.com/public/8315514543/s/10679515403_10679515403.json'
 
 DATAFILE_URI_ENCODED = URI(DATAFILE_URL)
 
-# => Step 5: Use a library, such as HTTParty, to get grab the datafile from the CDN 
+DATAFILE = HTTParty.get(DATAFILE_URL).body
+p DATAFILE
+
+optimizely_client = Optimizely::Project.new(DATAFILE)
+
+# => Step 5: Use a library, such as HTTParty, to get grab the datafile from the CDN
 #         https://github.com/jnunemaker/httparty#examples
 #         example: response = HTTParty.get('http://api.stackexchange.com/2.2/questions?site=stackoverflow').body
-#         The above line will return the body of the http request 
+#         The above line will return the body of the http request
 #         NOTE: use the uri encoded url shown above :)
 
 # => Step 6: Initialize the Optimizely SDK using the json retrieved from step 4
@@ -39,29 +45,42 @@ get '/' do
 end
 
 # => GET endpoint to receive messages, this should be setup as a webhook in Twilio
-# => anytime twilio receives a message on our number, Twilio will make a request to this endpoint 
+# => anytime twilio receives a message on our number, Twilio will make a request to this endpoint
 get '/sms' do
-  
+
+
   # => Getting the number that texted the sms service
 	sender_number = params[:From]
-  
+
   # => Getting the message that was sent to the service
   # => We could use this to understand what the user said, and create a conversational dialog
 	text_body = params[:Body]
 
   # => Outputing the number and text body to the ruby console
-	puts "[CONSOLE LOG] New message from #{sender_number}"
-	puts "[CONSOLE LOG] They said #{text_body}"
+    puts "[CONSOLE LOG] New message from #{sender_number}"
+    puts "[CONSOLE LOG] They said #{text_body}"
 	puts "[CONSOLE LOG] Let's respond!"
 
 	# =>  Randomly generate a new User ID to demonstrate bucketing
 	# =>  Alternatively, you can use sender_number as the user ID, however due to deterministic bucketing using a single user id will always return the same variation
-	user_id = SecureRandom.uuid
 
-	# => STEP 7: Implement an Optimizely Full Stack experiment, or feature flag (with variables)
-	# => Example, test out different messages in your response
-	# => Using the helper function to reply to the number who messaged the sms service
+  user_id = SecureRandom.uuid
+  
+  # => STEP 7: Implement an Optimizely Full Stack experiment, or feature flag (with variables)
+  # => Example, test out different messages in your response
+  # => Using the helper function to reply to the number who messaged the sms service
   # => example: send_sms "Hey this is a response!" sender_number
+
+     variation_key = optimizely_client.activate('Sarah_Test', user_id)
+     if variation_key == 'Var_A'
+         send_sms "User is in Variation A", sender_number
+     elsif variation_key == 'Var_B'
+        send_sms "User is in Variation B", sender_number
+     else
+     send_sms "This is a response", sender_number
+     
+     end
+
 
 end
 
@@ -75,6 +94,5 @@ def send_sms body, number
       from: TWILIO_NUMBER,
       to: number,
       body: body
-    ) 
+    )
 end
-
